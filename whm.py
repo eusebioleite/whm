@@ -82,7 +82,7 @@ def handle_e(args):
         hour = row[3]
         id = row[0]
 
-    # Finish the last running timer
+    # Finish the last running timer x
     cursor.execute('UPDATE whm ' +
                f'SET date2="{datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")}", total_hours={difference}, subtotal={(hour * difference)} ' +
                f'WHERE id={id};')
