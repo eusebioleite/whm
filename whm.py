@@ -1,16 +1,24 @@
 import os
 import sqlite3
 from datetime import datetime
-import csv
+from reportlab.lib.pagesizes import landscape, A4
+from reportlab.lib import colors
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle
 import sys
+import shutil
 
 def handle_i(y):
-    if y:
-        # Create config directory
+    if y == "y":
+        # Remove existing config directory
         config_path = os.path.join(os.path.expanduser("~"), ".whm")
-        if not os.path.exists(config_path):
-            os.makedirs(config_path)
-            print(f"Directory created in the home folder: {config_path}")
+        if os.path.exists(config_path):
+            shutil.rmtree(config_path)
+            print(f"Existing directory removed: {config_path}")
+
+        # Create config directory
+        os.makedirs(config_path)
+        print(f"Directory created in the home folder: {config_path}")
 
         # Start SQLite connection
         connection = sqlite3.connect(config_path + '/whm.db')
@@ -32,7 +40,7 @@ def handle_i(y):
         cursor.close()
         connection.close()
     else:
-        print("Run this command once, it deletes all records and creates everything again, pass the --y parameter to confirm.")
+        print("Run this command once, it deletes all records and creates everything again, pass the y parameter to confirm.")
 
 def handle_h():
     print("""
@@ -260,42 +268,71 @@ def handle_s(date, date2, group):
     cursor.close()
     connection.close()
 
-def handle_x(output_folder):
+def handle_x(output_folder=None):
+    # Connect to the SQLite database
+    config_path = os.path.join(os.path.expanduser("~"), ".whm")
+    connection = sqlite3.connect(config_path + '/whm.db')
+    cursor = connection.cursor()
+
+    # Execute a query to fetch data from the "whm" table
+    cursor.execute("SELECT description, `group`, `hour`, date, date2, total_hours, subtotal FROM whm")
+
+    # Fetch all rows
+    rows = cursor.fetchall()
+
+    # Define the PDF file path
+    pdf_file_path = "whm_data.pdf"
+
+    # If an output folder is provided, update the file path
     if output_folder:
-        # Connect to the SQLite database
-        config_path = os.path.join(os.path.expanduser("~"), ".whm")
-        connection = sqlite3.connect(config_path + '/whm.db')
-        cursor = connection.cursor()
+        pdf_file_path = os.path.join(output_folder, pdf_file_path)
 
-        # Create the output folder if it doesn't exist
-        if not os.path.exists(output_folder):
-            os.makedirs(output_folder)
+    # Create a PDF document
+    pdf_document = SimpleDocTemplate(pdf_file_path, pagesize=landscape(A4))
 
-        # Execute a query to fetch data from the "whm" table
-        cursor.execute("SELECT * FROM whm")
+    # Define styles
+    styles = getSampleStyleSheet()
+    style_normal = styles['Normal']
+    style_heading = styles['Heading1']
 
-        # Fetch all rows
-        rows = cursor.fetchall()
+    # Define table data
+    table_data = [['Start', 'End', 'Description', 'Group', 'Total Hours', 'Hour $', 'Total $']]
 
-        # Define the CSV file path
-        csv_file_path = os.path.join(output_folder, 'whm_data.csv')
+    for row in rows:
+        # Format dates
+        start_date = datetime.strptime(row[3], "%Y-%m-%d %H:%M:%S.%f").strftime("%d-%m-%Y %H:%M")
+        end_date = datetime.strptime(row[4], "%Y-%m-%d %H:%M:%S.%f").strftime("%d-%m-%Y %H:%M")
 
-        # Write the data to the CSV file
-        with open(csv_file_path, 'w', newline='') as csv_file:
-            csv_writer = csv.writer(csv_file)
+        # Format float numbers
+        formatted_hour = "{:.2f}".format(row[2])
+        formatted_total_hours = "{:.2f}".format(row[5])
+        formatted_subtotal = "{:.2f}".format(row[6])
 
-            # Write the header row
-            header = [description[0] for description in cursor.description]
-            csv_writer.writerow(header)
+        # Add row to table data
+        table_data.append([start_date, end_date, row[0], row[1], formatted_total_hours, formatted_hour, formatted_subtotal])
 
-            # Write the data rows
-            csv_writer.writerows(rows)
+    # Create the table
+    table = Table(table_data)
 
-        # Close the cursor and the database connection
-        cursor.close()
-        connection.close()
-    else:
-        print("The parameter --output_folder is required")
+    # Apply styles to the table
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+        ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+    ]))
+
+    # Build the PDF document
+    pdf_document.build([table])
+
+    # Close the cursor and the database connection
+    cursor.close()
+    connection.close()
+
+    print(f"PDF generated at: {pdf_file_path}")
+
 
 def main():
 
