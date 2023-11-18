@@ -35,7 +35,37 @@ def handle_i(y):
         print("Run this command once, it deletes all records and creates everything again, pass the --y parameter to confirm.")
 
 def handle_h():
-    print("Help commands")
+    print("""
+    Help commands:
+    
+    i: Initialize
+        - Usage: whm i [--y]
+        - Description: Initializes the application, creates the necessary directory and SQLite database. Use --y to confirm and delete all records.
+
+    h: Help
+        - Usage: whm h
+        - Description: Displays help information for each command.
+
+    n: New Entry
+        - Usage: whm n <name> [<group>] [<hour>]
+        - Description: Adds a new entry to the database with the provided name, group, and hour values. Group and hour are optional.
+
+    e: End Timer
+        - Usage: whm e
+        - Description: Ends the currently running timer.
+
+    s: Search
+        - Usage: whm s [<date> [<date2>] [<group>]]
+        - Description: Searches and displays entries based on the specified date, date range, and/or group.
+
+    x: Export
+        - Usage: whm x <output_folder>
+        - Description: Exports the database to a CSV file in the specified output folder.
+
+    Example:
+        - To add a new entry: whm n "Meeting" "ProjectX" 2.5
+        - To search for entries: whm s "01-01-2023" "31-12-2023" "ProjectY"
+    """)
 
 def handle_n(name, group, hour):
     if name:
