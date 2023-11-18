@@ -1,24 +1,22 @@
-import argparse
 import os
 import sqlite3
 from datetime import datetime
 import csv
+import sys
 
-def handle_i(args):
-    if args.y:
+def handle_i(y):
+    if y:
         # Create config directory
         config_path = os.path.join(os.path.expanduser("~"), ".whm")
         if not os.path.exists(config_path):
             os.makedirs(config_path)
             print(f"Directory created in the home folder: {config_path}")
-        else:
-            print(f"Directory already exists in the home folder: {config_path}")
 
-        #Start SQLite connection
+        # Start SQLite connection
         connection = sqlite3.connect(config_path + '/whm.db')
         cursor = connection.cursor()
-        
-        cursor.execute("DROP TABLE whm;")
+
+        cursor.execute("DROP TABLE IF EXISTS whm;")
 
         cursor.execute('''CREATE TABLE IF NOT EXISTS whm (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -36,12 +34,12 @@ def handle_i(args):
     else:
         print("Run this command once, it deletes all records and creates everything again, pass the --y parameter to confirm.")
 
-def handle_h(args):
+def handle_h():
     print("Help commands")
 
-def handle_n(args):
-    if args.name:
-        #Start SQLite connection
+def handle_n(name, group, hour):
+    if name:
+        # Start SQLite connection
         config_path = os.path.join(os.path.expanduser("~"), ".whm")
         connection = sqlite3.connect(config_path + '/whm.db')
         cursor = connection.cursor()
@@ -49,106 +47,199 @@ def handle_n(args):
         # Get last hour value
         cursor.execute("SELECT * FROM whm ORDER BY `date` DESC LIMIT 1;")
         rows = cursor.fetchall()
-        hour = 0.0
+        hour_value = 0.0
         for row in rows:
-            hour = row[3]
+            hour_value = row[3]
 
         cursor.execute('INSERT INTO whm (description, `group`, `hour`, `date`, date2, total_hours, subtotal) ' +
-               f"VALUES ('{args.name}', '{args.group if args.group else 'NA'}', {args.hour if args.hour else hour}, '{datetime.now()}', null, 0.0, 0.0);")
+                       f"VALUES ('{name}', '{group if group else 'NA'}', {hour if hour else hour_value}, '{datetime.now()}', null, 0.0, 0.0);")
 
         connection.commit()
         cursor.close()
         connection.close()
-    else:
-        print("The parameter --name is required")
 
-def handle_e(args):
-    #Start SQLite connection
+def handle_e():
+    # Start SQLite connection
     config_path = os.path.join(os.path.expanduser("~"), ".whm")
     connection = sqlite3.connect(config_path + '/whm.db')
     cursor = connection.cursor()
-    
-    #Get the last running timer, and calculates the total_hours and subtotal
+
+    # Get the last running timer, and calculate the total_hours and subtotal
     cursor.execute("SELECT * FROM whm ORDER BY `date` DESC LIMIT 1;")
     rows = cursor.fetchall()
     difference = 0.0
-    hour = 0.0
-    id = 0
+    hour_value = 0.0
+    id_value = 0
     for row in rows:
-
         date1 = datetime.strptime(row[4], "%Y-%m-%d %H:%M:%S.%f")
         date2 = datetime.now()
         difference = round(((date2 - date1).total_seconds() / 3600), 2)
-        hour = row[3]
-        id = row[0]
+        hour_value = row[3]
+        id_value = row[0]
 
-    # Finish the last running timer x
+    # Finish the last running timer
     cursor.execute('UPDATE whm ' +
-               f'SET date2="{datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")}", total_hours={difference}, subtotal={(hour * difference)} ' +
-               f'WHERE id={id};')
+                   f'SET date2="{datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")}", total_hours={difference}, subtotal={(hour_value * difference)} ' +
+                   f'WHERE id={id_value};')
 
-    
     connection.commit()
     cursor.close()
     connection.close()
+    print("Timer ended.")
 
-def handle_s(args):
-    #Start SQLite connection
+
+def handle_s(date, date2, group):
+    # Start SQLite connection
     config_path = os.path.join(os.path.expanduser("~"), ".whm")
     connection = sqlite3.connect(config_path + '/whm.db')
     cursor = connection.cursor()
-    if args.date and args.date2 and args.sgroup:
-        cursor.execute('SELECT `date`, description, `group`, total_hours, `hour`, subtotal FROM whm ' +
-                       f'WHERE `date`>={args.date} and date2<={args.date2} and `group`="{args.sgroup}";')
+    is_date = False
+    if date is not None:
+        try:
+            # Attempt to convert the date parameter to a valid date
+            datetime.strptime(date, "%d-%m-%Y")
+            is_date = True
+        except ValueError:
+            is_date = False
+    if date and date2 and group:
+        cursor.execute('SELECT whm.date, whm.description, whm."group", whm.total_hours, whm."hour", whm.subtotal FROM whm ' +
+                        f'WHERE strftime("%d-%m-%Y", whm.date) >= "{date}" AND strftime("%d-%m-%Y", whm.date) <= "{date2}" AND whm."group" = "{group}";')
         rows = cursor.fetchall()
-        print("Date | Description | Group | Hours | $Hour | Total")
-        for row in rows:
-            print(f'{row[0]} | {row[1]} | {row[2]} | {row[3]} | {row[4]} | {row[5]}')
-    elif args.date and args.date2:
-        cursor.execute('SELECT `date`, description, `group`, total_hours, `hour`, subtotal FROM whm ' +
-                       f'WHERE `date`>={args.date} and date2<={args.date2};')
-        rows = cursor.fetchall()
-        print("Date | Description | Group | Hours | $Hour | Total")
-        for row in rows:
-            print(f'{row[0]} | {row[1]} | {row[2]} | {row[3]} | {row[4]} | {row[5]}')
-    elif args.date:
-        cursor.execute('SELECT `date`, description, `group`, total_hours, `hour`, subtotal FROM whm ' +
-                       f'WHERE `date`={args.date};')
-        rows = cursor.fetchall()
-        print("Date | Description | Group | Hours | $Hour | Total")
-        for row in rows:
-            print(f'{row[0]} | {row[1]} | {row[2]} | {row[3]} | {row[4]} | {row[5]}')
-    elif args.sgroup:
-        cursor.execute('SELECT `date`, description, `group`, total_hours, `hour`, subtotal FROM whm ' +
-                       f'WHERE `group`="{args.sgroup}";')
-        rows = cursor.fetchall()
-        print("Date | Description | Group | Hours | $Hour | Total")
-        for row in rows:
-            print(f'{row[0]} | {row[1]} | {row[2]} | {row[3]} | {row[4]} | {row[5]}')
-    else:
-        cursor.execute("SELECT `date`, description, `group`, total_hours, `hour`, subtotal FROM whm ORDER BY `date` DESC LIMIT 1;")
-        rows = cursor.fetchall()
-        print("Last timer:")
-        print("Date                | Description | Group | Hours | $Hour | Total")
+
+        col_widths = [20, 40, 10, 8, 8, 8]
+        print("+" + "+".join("-" * (width + 2) for width in col_widths) + "+")
+        print("|  " + "|  ".join(f'{header.ljust(width)}' for header, width in zip(["Date", "Description", "Group", "Hours", "$Hour", "Total"], col_widths)) + "|")
+        print("+" + "+".join("-" * (width + 2) for width in col_widths) + "+")
+
         for row in rows:
             formatted_date = datetime.strptime(row[0], "%Y-%m-%d %H:%M:%S.%f").strftime("%d-%m-%Y %H:%M:%S")
-            formatted_total = "{:.2f}".format(row[5])  # Format total to two decimal places
-            print(f'{formatted_date} | {row[1]} | {row[2]} | {row[3]} | {row[4]} | {formatted_total}')
+            formatted_total = "{:.2f}".format(row[5])
 
-    
+            row_data = [
+                formatted_date,
+                row[1],
+                row[2],
+                f'{row[3]:.2f}',
+                f'{row[4]:.2f}',
+                formatted_total
+            ]
+
+            print("| " + " | ".join(data.ljust(width) for data, width in zip(row_data, col_widths)) + " |")
+
+        print("+" + "+".join("-" * (width + 2) for width in col_widths) + "+")
+    elif date and date2:
+        cursor.execute('SELECT whm.date, whm.description, whm."group", whm.total_hours, whm."hour", whm.subtotal FROM whm ' +
+                        f'WHERE strftime("%d-%m-%Y", whm.date) >= "{date}" AND strftime("%d-%m-%Y", whm.date) <= "{date2}";')
+        rows = cursor.fetchall()
+        col_widths = [20, 40, 10, 8, 8, 8]
+        print("+" + "+".join("-" * (width + 2) for width in col_widths) + "+")
+        print("|  " + "|  ".join(f'{header.ljust(width)}' for header, width in zip(["Date", "Description", "Group", "Hours", "$Hour", "Total"], col_widths)) + "|")
+        print("+" + "+".join("-" * (width + 2) for width in col_widths) + "+")
+
+        for row in rows:
+            formatted_date = datetime.strptime(row[0], "%Y-%m-%d %H:%M:%S.%f").strftime("%d-%m-%Y %H:%M:%S")
+            formatted_total = "{:.2f}".format(row[5])
+
+            row_data = [
+                formatted_date,
+                row[1],
+                row[2],
+                f'{row[3]:.2f}',
+                f'{row[4]:.2f}',
+                formatted_total
+            ]
+
+            print("| " + " | ".join(data.ljust(width) for data, width in zip(row_data, col_widths)) + " |")
+
+        print("+" + "+".join("-" * (width + 2) for width in col_widths) + "+")
+    elif is_date:
+        cursor.execute('SELECT whm.date, whm.description, whm."group", whm.total_hours, whm."hour", whm.subtotal FROM whm ' +
+                        f'WHERE strftime("%d-%m-%Y", whm.date) = "{date}"')
+        rows = cursor.fetchall()
+        col_widths = [20, 40, 10, 8, 8, 8]
+        print("+" + "+".join("-" * (width + 2) for width in col_widths) + "+")
+        print("|  " + "|  ".join(f'{header.ljust(width)}' for header, width in zip(["Date", "Description", "Group", "Hours", "$Hour", "Total"], col_widths)) + "|")
+        print("+" + "+".join("-" * (width + 2) for width in col_widths) + "+")
+
+        for row in rows:
+            formatted_date = datetime.strptime(row[0], "%Y-%m-%d %H:%M:%S.%f").strftime("%d-%m-%Y %H:%M:%S")
+            formatted_total = "{:.2f}".format(row[5])
+
+            row_data = [
+                formatted_date,
+                row[1],
+                row[2],
+                f'{row[3]:.2f}',
+                f'{row[4]:.2f}',
+                formatted_total
+            ]
+
+            print("| " + " | ".join(data.ljust(width) for data, width in zip(row_data, col_widths)) + " |")
+
+        print("+" + "+".join("-" * (width + 2) for width in col_widths) + "+")
+    elif date is not None:
+        cursor.execute('SELECT whm.date, whm.description, whm."group", whm.total_hours, whm."hour", whm.subtotal FROM whm ' +
+                        f'WHERE whm."group" = "{date}";')
+        rows = cursor.fetchall()
+        col_widths = [20, 40, 10, 8, 8, 8]
+        print("+" + "+".join("-" * (width + 2) for width in col_widths) + "+")
+        print("|  " + "|  ".join(f'{header.ljust(width)}' for header, width in zip(["Date", "Description", "Group", "Hours", "$Hour", "Total"], col_widths)) + "|")
+        print("+" + "+".join("-" * (width + 2) for width in col_widths) + "+")
+
+        for row in rows:
+            formatted_date = datetime.strptime(row[0], "%Y-%m-%d %H:%M:%S.%f").strftime("%d-%m-%Y %H:%M:%S")
+            formatted_total = "{:.2f}".format(row[5])
+
+            row_data = [
+                formatted_date,
+                row[1],
+                row[2],
+                f'{row[3]:.2f}',
+                f'{row[4]:.2f}',
+                formatted_total
+            ]
+
+            print("| " + " | ".join(data.ljust(width) for data, width in zip(row_data, col_widths)) + " |")
+
+        print("+" + "+".join("-" * (width + 2) for width in col_widths) + "+")
+    elif date is None:
+        cursor.execute('SELECT whm.date, whm.description, whm."group", whm.total_hours, whm."hour", whm.subtotal FROM whm ORDER BY whm.date DESC LIMIT 1;')
+        rows = cursor.fetchall()
+        col_widths = [20, 40, 10, 8, 8, 8]
+        print("+" + "+".join("-" * (width + 2) for width in col_widths) + "+")
+        print("|  " + "|  ".join(f'{header.ljust(width)}' for header, width in zip(["Date", "Description", "Group", "Hours", "$Hour", "Total"], col_widths)) + "|")
+        print("+" + "+".join("-" * (width + 2) for width in col_widths) + "+")
+
+        for row in rows:
+            formatted_date = datetime.strptime(row[0], "%Y-%m-%d %H:%M:%S.%f").strftime("%d-%m-%Y %H:%M:%S")
+            formatted_total = "{:.2f}".format(row[5])
+
+            row_data = [
+                formatted_date,
+                row[1],
+                row[2],
+                f'{row[3]:.2f}',
+                f'{row[4]:.2f}',
+                formatted_total
+            ]
+
+            print("| " + " | ".join(data.ljust(width) for data, width in zip(row_data, col_widths)) + " |")
+
+        print("+" + "+".join("-" * (width + 2) for width in col_widths) + "+")
+
     cursor.close()
     connection.close()
-    
-def handle_x(args):
-    if args.output_folder:
+
+def handle_x(output_folder):
+    if output_folder:
         # Connect to the SQLite database
         config_path = os.path.join(os.path.expanduser("~"), ".whm")
         connection = sqlite3.connect(config_path + '/whm.db')
         cursor = connection.cursor()
 
         # Create the output folder if it doesn't exist
-        if not os.path.exists(args.output_folder):
-            os.makedirs(args.output_folder)
+        if not os.path.exists(output_folder):
+            os.makedirs(output_folder)
 
         # Execute a query to fetch data from the "whm" table
         cursor.execute("SELECT * FROM whm")
@@ -157,16 +248,16 @@ def handle_x(args):
         rows = cursor.fetchall()
 
         # Define the CSV file path
-        csv_file_path = os.path.join(args.output_folder, 'whm_data.csv')
+        csv_file_path = os.path.join(output_folder, 'whm_data.csv')
 
         # Write the data to the CSV file
         with open(csv_file_path, 'w', newline='') as csv_file:
             csv_writer = csv.writer(csv_file)
-            
+
             # Write the header row
             header = [description[0] for description in cursor.description]
             csv_writer.writerow(header)
-            
+
             # Write the data rows
             csv_writer.writerows(rows)
 
@@ -177,48 +268,31 @@ def handle_x(args):
         print("The parameter --output_folder is required")
 
 def main():
-    parser = argparse.ArgumentParser(description='Desc')
 
-    subparsers = parser.add_subparsers(title='Commands', dest='command', required=True)
+    if len(sys.argv) < 2:
+        print("Please provide a command.")
+        sys.exit(1)
 
-    # Subparser for the init command
-    init_parser = subparsers.add_parser('i', help='Generate config files, only executed once')
-    init_parser.add_argument('--y', required=False, help='Confirm drop and create')
-    init_parser.set_defaults(func=handle_i)
-
-    # Subparser for the help command
-    help_parser = subparsers.add_parser('h', help='Display commands')
-    help_parser.set_defaults(func=handle_h)
-
-    # Subparser for the new command
-    new_parser = subparsers.add_parser('n', help='Start a timer')
-    new_parser.add_argument('--name', required=False, help='Timer name')
-    new_parser.add_argument('--group', required=False, help='Timer group')
-    new_parser.add_argument('--hour', required=False, help='Set the hour value, if no value is specified, it\'ll get the last value')
-    new_parser.set_defaults(func=handle_n)
-
-    # Subparser for the end command
-    end_parser = subparsers.add_parser('e', help='Stop the timer')
-    end_parser.set_defaults(func=handle_e)
-
-    # Subparser for the show command
-    show_parser = subparsers.add_parser('s', help='Display the current timer')
-    show_parser.add_argument('--date', required=False, help='Display timers from this date or if date2 is set, after this date')
-    show_parser.add_argument('--date2', required=False, help='Display timers from before this date')
-    show_parser.add_argument('--sgroup', required=False, help='Display timers from the specified group')
-    show_parser.set_defaults(func=handle_s)
-
-    # Subparser for the export command
-    export_parser = subparsers.add_parser('x', help='Export the records to csv')
-    export_parser.add_argument('--output_folder', required=False, help='Which folder to export')
-    export_parser.set_defaults(func=handle_x)
-
-    args = parser.parse_args()
-
-    # Call the appropriate function based on the selected command
-    args.func(args)
+    command = sys.argv[1]
+    if command == 'i':
+        handle_i(sys.argv[2] if len(sys.argv) > 2 else None)
+    elif command == 'h':
+        handle_h()
+    elif command == 'n':
+        handle_n(sys.argv[2] if len(sys.argv) > 2 else None,
+                 sys.argv[3] if len(sys.argv) > 3 else None,
+                 sys.argv[4] if len(sys.argv) > 4 else None)
+    elif command == 'e':
+        handle_e()
+    elif command == 's':
+        handle_s(sys.argv[2] if len(sys.argv) > 2 else None,
+                 sys.argv[3] if len(sys.argv) > 3 else None,
+                 sys.argv[4] if len(sys.argv) > 4 else None)
+    elif command == 'x':
+        handle_x(sys.argv[2] if len(sys.argv) > 2 else None)
+    else:
+        print("Invalid command.")
+        sys.exit(1)
 
 if __name__ == '__main__':
     main()
-    
-    
