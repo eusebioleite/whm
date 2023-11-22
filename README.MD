@@ -38,7 +38,7 @@ $ whm h
 - **Description:** Adds a new entry to the database with the provided name, group, and hour values. Group and hour are optional.
 
 ```bash
-$ whm n "Meeting" "ProjectX" 2.5
+$ whm n Meeting ProjectX 2.5
 ```
 
 ### End Timer
@@ -56,19 +56,19 @@ $ whm e
 - **Description:** Searches and displays entries based on the specified date, date range, and/or group.
 
 ```bash
-$ whm s "01-01-2023" "31-12-2023" "ProjectY"
+$ whm s 01-01-2023 31-12-2023 ProjectY
 ```
 
 ```bash
-$ whm s "01-01-2023" "31-12-2023"
+$ whm s 01-01-2023 31-12-2023
 ```
 
 ```bash
-$ whm s "01-01-2023"
+$ whm s 01-01-2023
 ```
 
 ```bash
-$ whm s "ProjectY"
+$ whm s ProjectY
 ```
 
 ```bash
